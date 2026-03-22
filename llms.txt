@@ -1,0 +1,54 @@
+# ecoclaw-mcp
+
+EcoFiClaw core MCP — installed once, owned forever. Gives you 6 tools to manage and improve your AI skills.
+
+## What this is
+
+This MCP server runs locally on your machine and gives Claude access to your installed AI skills. It also lets your skills improve themselves over time based on your feedback — no subscription, no cloud, no ongoing relationship with EcoFiClaw required after install day.
+
+## The 6 tools
+
+### list_skills
+Lists all your installed skills. Shows which ones you've customized.
+
+### run_skill
+Gets the full prompt for a skill so Claude can use it right now. Always uses your customized version if you have one.
+
+### tune_skill
+The powerful one. You say "I want this skill to always use a casual tone" — and the skill's prompt is rewritten to do exactly that, permanently, on your machine. Uses Claude to apply the change intelligently. Original npm version is never touched.
+
+### fork_skill
+Creates an independent copy under a new name. Good for specialist variants (e.g. listing-writer-luxury alongside listing-writer).
+
+### contribute
+If your improvement would help the community, this submits a GitHub PR to the upstream skill repo. Uses the gh CLI. Completely optional.
+
+### update_skills
+Pulls latest npm versions of skills. Skips any skill you've customized — your tuning is always preserved.
+
+## Storage
+
+- `~/.claude/skills/` — npm-installed skills (read-only here)
+- `~/.ecoclaw/skills/` — your customizations and forks (writable)
+- `~/.ecoclaw/config.json` — your profile and install record
+- `~/.ecoclaw/history.jsonl` — log of every tune operation (future rollback)
+
+## Claude Desktop config
+
+```json
+{
+  "mcpServers": {
+    "ecoclaw": {
+      "command": "npx",
+      "args": ["-y", "@ecoclaw/mcp"],
+      "env": {}
+    }
+  }
+}
+```
+
+## Notes for LLMs
+
+- `tune_skill` calls the Anthropic API internally using `ANTHROPIC_API_KEY` from the environment
+- All operations are local — no data leaves the machine except for `contribute` (which submits a GitHub PR) and `tune_skill` (which calls the Anthropic API)
+- Skills are plain markdown files (SKILL.md) — human-readable, version-controllable, portable
