@@ -23,6 +23,7 @@ import {
   ECOCLAW_SKILLS_DIR,
   appendHistorySync,
 } from "./config.js";
+import { discoverSkills, buildSkillContext, listByokKeys } from "./discovery.js";
 
 const server = new Server(
   { name: "ecoclaw", version: "0.1.0" },
@@ -118,6 +119,52 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
               "Update only this skill (optional). Omit to update all skills.",
           },
         },
+        required: [],
+      },
+    },
+    {
+      name: "discover_skills",
+      description:
+        "Scan the current project and installed npm packages for available skills. Returns structured manifests with id, name, description, triggers, dataSources, byokKeys, and author. Looks in <CWD>/skills/, node_modules/@gonzih/skills-*/skills/, and node_modules/@ecoclaw/*/skills/.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          dir: {
+            type: "string",
+            description: "Directory to scan (default: current working directory)",
+          },
+          filter_by_keys: {
+            type: "boolean",
+            description:
+              "If true, only return skills whose required BYOK API keys are present in the environment. Skills with no byokKeys are always included.",
+          },
+        },
+        required: [],
+      },
+    },
+    {
+      name: "build_skill_context",
+      description:
+        "Build an instruction string for agent delegation from a list of skill names. Returns a string like \"Make sure to use the following skills: 'arxiv', 'fred-economics'\" that can be prepended to an agent task.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          skill_names: {
+            type: "array",
+            items: { type: "string" },
+            description: "List of skill names to include in the context string",
+          },
+        },
+        required: ["skill_names"],
+      },
+    },
+    {
+      name: "list_byok_keys",
+      description:
+        "Scan all discovered skills and report which BYOK API keys are present vs. missing in the current environment. Helps you know what to configure to unlock more skills.",
+      inputSchema: {
+        type: "object",
+        properties: {},
         required: [],
       },
     },
@@ -315,6 +362,62 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             : "",
         ].filter(Boolean);
 
+        return { content: [{ type: "text", text: lines.join("\n") }] };
+      }
+
+      case "discover_skills": {
+        const { dir, filter_by_keys } = (args as { dir?: string; filter_by_keys?: boolean }) ?? {};
+        const manifests = discoverSkills(dir, filter_by_keys ?? false);
+        if (manifests.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "No skills discovered. Add SKILL.md files with YAML frontmatter to <CWD>/skills/, or install @gonzih/skills-* / @ecoclaw/* npm packages.",
+              },
+            ],
+          };
+        }
+        const lines = [
+          `Discovered ${manifests.length} skill${manifests.length === 1 ? "" : "s"}:\n`,
+          ...manifests.map((m) => {
+            const keys = m.byokKeys.length > 0 ? ` | byokKeys: ${m.byokKeys.join(", ")}` : "";
+            const triggers = m.triggers.length > 0 ? ` | triggers: ${m.triggers.join(", ")}` : "";
+            return `• ${m.id} (${m.name}) — ${m.description || "(no description)"}${triggers}${keys}\n  author: ${m.author} | path: ${m.path}`;
+          }),
+        ];
+        return { content: [{ type: "text", text: lines.join("\n") }] };
+      }
+
+      case "build_skill_context": {
+        const { skill_names } = args as { skill_names: string[] };
+        const text = buildSkillContext(skill_names);
+        return {
+          content: [
+            {
+              type: "text",
+              text: text || "(no skill names provided — context string is empty)",
+            },
+          ],
+        };
+      }
+
+      case "list_byok_keys": {
+        const { present, missing } = listByokKeys();
+        const lines = ["## BYOK key status\n"];
+        if (present.length > 0) {
+          lines.push(`**Present (${present.length}):**`);
+          lines.push(...present.map((k) => `  ✓ ${k}`));
+          lines.push("");
+        }
+        if (missing.length > 0) {
+          lines.push(`**Missing (${missing.length}):**`);
+          lines.push(...missing.map((k) => `  ✗ ${k}`));
+          lines.push("\nSet these environment variables to unlock the corresponding skills.");
+        }
+        if (present.length === 0 && missing.length === 0) {
+          lines.push("No BYOK keys required by any discovered skills.");
+        }
         return { content: [{ type: "text", text: lines.join("\n") }] };
       }
 
