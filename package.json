@@ -1,6 +1,6 @@
 {
   "name": "@ecoclaw/mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "EcoFiClaw core MCP — skill management and self-modification for your installed AI setup",
   "license": "MIT",
   "type": "module",
